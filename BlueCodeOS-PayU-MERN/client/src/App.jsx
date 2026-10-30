@@ -9,18 +9,80 @@ const plans = [
 
 function PaymentResult() {
   const params = new URLSearchParams(window.location.search);
-  const status = params.get("status") || "unknown";
+  const urlStatus = params.get("status") || "unknown";
   const txnid = params.get("txnid");
-  const title = status === "success" ? "Payment successful" :
-    status === "failed" ? "Payment not completed" :
-    "We could not verify this payment";
-  const message = status === "success"
-    ? "The payment response was verified and a subscription record was activated."
-    : status === "failed" ? "PayU reported that this transaction did not succeed. You can try again."
-    : "Please contact support before retrying. Do not pay again until the transaction is checked.";
+
+  const [txData, setTxData] = useState(null);
+  const [loading, setLoading] = useState(Boolean(txnid));
+
+  useEffect(() => {
+    if (!txnid) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${API}/api/payments/status/${encodeURIComponent(txnid)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        setTxData(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, [txnid]);
+
+  // Determine actual verified status
+  const effectiveStatus = txData?.status || urlStatus;
+  const isSuccess = effectiveStatus === "success";
+  const isFailed = effectiveStatus === "failed";
+
+  const title = loading
+    ? "Verifying transaction…"
+    : isSuccess
+    ? "Payment successful"
+    : isFailed
+    ? "Payment not completed"
+    : "Verification failed";
+
+  const message = loading
+    ? "Connecting with the BlueCode OS server to confirm your payment with PayU…"
+    : isSuccess
+    ? `Your payment has been cryptographically verified and your ${txData?.planName || "BlueCode OS"} subscription is active.`
+    : isFailed
+    ? "PayU reported that this transaction did not succeed. No funds were captured."
+    : "We could not verify this payment with the payment gateway. Please contact support before retrying.";
+
   return <main className="result-wrap"><section className="result-card">
-    <div className={`result-icon ${status === "success" ? "good" : "bad"}`}>{status === "success" ? "✓" : "!"}</div>
-    <p className="eyebrow">BLUECODE OS · PAYU</p><h1>{title}</h1><p className="muted">{message}</p>
+    <div className={`result-icon ${isSuccess ? "good" : "bad"}`}>{isSuccess ? "✓" : "!"}</div>
+    <p className="eyebrow">BLUECODE OS · PAYU GATEWAY</p>
+    <h1>{title}</h1>
+    <p className="muted">{message}</p>
+
+    {txData && (
+      <div style={{ margin: "20px 0", textAlign: "left", fontSize: "13px", background: "rgba(59,130,246,0.06)", border: "1px solid var(--border-subtle)", borderRadius: "8px", padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Plan:</span>
+          <strong style={{ color: "#fff" }}>{txData.planName}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Amount:</span>
+          <strong style={{ color: "#fff" }}>₹{txData.amount}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Verification:</span>
+          <span style={{ color: txData.serverVerified ? "#34d399" : "#f87171" }}>
+            {txData.serverVerified ? "✓ Verified Server-to-Server" : "Unverified"}
+          </span>
+        </div>
+        {txData.subscription?.status && (
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-secondary)" }}>Subscription:</span>
+            <span style={{ color: "#34d399", textTransform: "capitalize" }}>{txData.subscription.status}</span>
+          </div>
+        )}
+      </div>
+    )}
+
     {txnid && <p className="transaction">Transaction ID: <code>{txnid}</code></p>}
     <a className="button" href="/">Back to plans</a>
   </section></main>;
@@ -35,8 +97,10 @@ function Checkout({ plan, onClose }) {
 
   async function pay(e) {
     e.preventDefault();
+    if (busy) return;
     setError("");
     setBusy(true);
+
     try {
       const response = await fetch(`${API}/api/payments/create`, {
         method: "POST",
@@ -45,7 +109,8 @@ function Checkout({ plan, onClose }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to start payment.");
-      // Submit to PayU's hosted checkout; secret salt stays on the backend.
+
+      // Submit to PayU's hosted checkout; secret salt stays strictly on backend.
       const formElement = document.createElement("form");
       formElement.method = "POST";
       formElement.action = data.paymentUrl;
@@ -74,7 +139,9 @@ function Checkout({ plan, onClose }) {
         <label>Email address<input name="email" type="email" value={form.email} onChange={update} autoComplete="email" required /></label>
         <label>Phone number<input name="phone" type="tel" value={form.phone} onChange={update} autoComplete="tel" minLength="8" required /></label>
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="button full" type="submit" disabled={busy}>{busy ? "Preparing payment…" : `Continue to PayU · ${plan.price}`}</button>
+        <button className="button full" type="submit" disabled={busy}>
+          {busy ? "Preparing payment…" : `Continue to PayU · ${plan.price}`}
+        </button>
       </form>
       <p className="fine-print">Test mode starter. Your card/UPI details are entered only on PayU's hosted checkout page.</p>
     </section>
@@ -84,14 +151,22 @@ function Checkout({ plan, onClose }) {
 function App() {
   const [selected, setSelected] = useState(null);
   const [apiState, setApiState] = useState("checking");
+
   useEffect(() => {
-    fetch(`${API}/api/health`).then(r => r.ok ? setApiState("online") : setApiState("offline")).catch(() => setApiState("offline"));
+    function check() {
+      fetch(`${API}/api/health`)
+        .then(r => r.ok ? setApiState("online") : setApiState("offline"))
+        .catch(() => setApiState("offline"));
+    }
+    check();
+    const timer = setInterval(check, 10000);
+    return () => clearInterval(timer);
   }, []);
 
   if (window.location.pathname === "/payment-result") return <PaymentResult />;
 
   return <main className="page">
-    <nav className="nav"><a className="brand" href="/"><span className="brand-mark">B</span> BlueCode OS</a><span className={`api-status ${apiState}`}><i /> API {apiState}</span></nav>
+    <nav className="nav"><a className="brand" href="/"><img src="/bluecode-logo.png" alt="Blue Code" className="brand-logo" /> BlueCode OS</a><span className={`api-status ${apiState}`}><i /> API {apiState}</span></nav>
     <section className="hero">
       <p className="eyebrow">BUILD · CONNECT · GROW</p>
       <h1>Choose a plan.<br /><span>Build something great.</span></h1>
@@ -106,8 +181,8 @@ function App() {
         <button className={`button ${plan.popular ? "" : "secondary"}`} onClick={() => setSelected(plan)}>Choose {plan.name}</button>
       </article>)}
     </section>
-    <footer>Payments powered by PayU · Merchant credentials stay on the server.</footer>
     {selected && <Checkout plan={selected} onClose={() => setSelected(null)} />}
   </main>;
 }
+
 export default App;
