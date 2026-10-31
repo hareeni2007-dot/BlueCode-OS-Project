@@ -7,7 +7,7 @@ import paymentRoutes from "./routes/payments.js";
 const app = express();
 
 // Render sets process.env.PORT dynamically. Fallback to 5000 for local development.
-const port = Number(process.env.PORT || 5000);
+const port = Number(process.env.PORT || 5001);
 
 // Parse allowed client origins (supports comma-separated list for multiple environments)
 const rawClientUrl = process.env.CLIENT_URL || "";

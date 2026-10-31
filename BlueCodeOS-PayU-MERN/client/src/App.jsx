@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5001`;
 const plans = [
   { id: "starter", name: "Starter", price: "₹99", detail: "For trying BlueCode OS" },
   { id: "product", name: "Product", price: "₹299", detail: "For individual builders", popular: true },
