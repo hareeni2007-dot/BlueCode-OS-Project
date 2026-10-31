@@ -1,71 +1,99 @@
-# BlueCode OS — PayU MERN starter
+# BlueCode OS — PayU MERN Payment Integration
 
-This is a **PayU-only MERN-style starter** converted from the PHP sample:
-- MongoDB: stores payment attempts and subscription records
-- Express + Node.js: creates PayU requests and verifies PayU callback hashes
-- React + Vite: subscription selection and checkout UI
+A full-stack MERN payment integration with **deep blue theme UI**, PayU India payment gateway, and MongoDB.
 
-## Important
-This is a starter/demo, not a production-ready billing system. It uses PayU's **test environment** by default. Do not use real payments until your PayU account, current PayU integration documentation, callback URLs, deployment HTTPS, and security review are complete.
+## Tech Stack
+- **Frontend**: React 18 + Vite (Deep Blue Theme UI, port 5173/5174)
+- **Backend**: Express + Node.js (port 5001)
+- **Database**: MongoDB (local or Atlas) with automatic in-memory fallback
+- **Payment**: PayU India (Test Sandbox & Production Ready)
 
-## Requirements
-- Node.js 20+ recommended
-- MongoDB local or MongoDB Atlas
-- PayU merchant test key and salt
+---
 
-## Setup
+## 🚀 Quick Start (Run from GitHub)
 
-### 1. Configure backend
+### Option 1: One-Click Windows Launcher
+Double-click `start.bat` in the root folder. It will automatically launch both the Backend and Frontend in separate windows!
+
+---
+
+### Option 2: Run via NPM
+
+#### 1. Clone the repository
 ```bash
-cd server
-npm install
+git clone https://github.com/hareeni2007-dot/blueCode.git
+cd blueCode
 ```
-Copy `.env.example` to `.env`, then fill in:
+
+#### 2. Install dependencies
+```bash
+# In the project root:
+npm install
+npm --prefix BlueCodeOS-PayU-MERN/server install
+npm --prefix BlueCodeOS-PayU-MERN/client install
+```
+
+#### 3. Start both Backend and Frontend concurrently
+```bash
+npm run dev
+```
+
+Or run them individually in two separate terminals:
+
+**Terminal 1 — Backend:**
+```bash
+cd BlueCodeOS-PayU-MERN/server
+npm run dev
+```
+👉 Backend starts at: **http://localhost:5001**
+
+**Terminal 2 — Frontend:**
+```bash
+cd BlueCodeOS-PayU-MERN/client
+npm run dev
+```
+👉 Frontend starts at: **http://localhost:5173**
+
+---
+
+## 🎨 Theme & UI
+- **Theme**: Deep Navy Blue (`#020b18`, `#041529`, `#2563eb`, `#60a5fa`)
+- **Plans**: Starter (₹99), Product (₹299), Team (₹799)
+- **Checkout**: Seamless checkout modal connected directly to PayU India test sandbox.
+
+---
+
+## ⚙️ Configuration & Environment
+
+Pre-configured sandbox credentials are included by default, so it runs **out of the box** without setup!
+
+To customize credentials, create `.env` files:
+
+### Backend (`BlueCodeOS-PayU-MERN/server/.env`)
 ```env
+PORT=5001
 MONGODB_URI=mongodb://127.0.0.1:27017/bluecodeos_payments
-PAYU_MERCHANT_KEY=your_test_key
-PAYU_MERCHANT_SALT=your_test_salt
+PAYU_MERCHANT_KEY=0pu2TB
+PAYU_MERCHANT_SALT=hsSPhuQHRnuEIK3CmS7hMcXFrHiyRyYd
 PAYU_PAYMENT_URL=https://test.payu.in/_payment
-CLIENT_URL=http://localhost:5173
-SERVER_URL=http://localhost:5000
-PORT=5000
+PAYU_POST_SERVICE_URL=https://test.payu.in/merchant/postservice?form=2
+ADMIN_SECRET_KEY=bluecode_admin_secret_key_2026
+CLIENT_URL=http://localhost:5173,http://localhost:5174
+SERVER_URL=http://localhost:5001
 ```
-Keep the `.env` file private. Never put the PayU salt in React/frontend code or commit it to GitHub.
 
-### 2. Start backend
-```bash
-npm run dev
+### Frontend (`BlueCodeOS-PayU-MERN/client/.env`)
+```env
+VITE_API_URL=http://localhost:5001
 ```
-The API starts at `http://localhost:5000`.
 
-### 3. Configure and start frontend
-Open a second terminal:
-```bash
-cd client
-npm install
-```
-Copy `client/.env.example` to `client/.env` if needed. Then:
-```bash
-npm run dev
-```
-Open `http://localhost:5173`.
+---
 
-## Flow
-1. User selects a plan in React.
-2. React sends plan ID and customer details to `POST /api/payments/create`.
-3. Express validates the plan and calculates the amount on the server.
-4. Express creates a transaction ID, generates the SHA-512 request hash, and saves a pending payment record in MongoDB.
-5. React submits the returned fields to PayU's hosted checkout.
-6. PayU posts the result to Express `POST /api/payments/callback`.
-7. Express verifies the response hash and stores the result; it redirects the browser to the React result page.
-
-## Plans
-Edit `server/src/config/plans.js`. Amounts are defined on the server and the client cannot choose an arbitrary amount.
-
-## Before production
-- Confirm the exact request/response hash sequence against the PayU product and account you use.
-- Configure HTTPS callback URLs and a stable public `SERVER_URL`.
-- Add your existing BlueCode OS authentication and associate orders with the authenticated user ID.
-- Verify callback authenticity and reconcile payment status with PayU's server-side verification/status API as required by your PayU integration.
-- Add idempotency, duplicate-callback handling, monitoring, rate limits, CSRF/origin controls where appropriate, and database backups.
-- Subscription renewals/recurring mandates, cancellations, refunds, GST/invoices, and failed-renewal recovery are **not implemented** by this basic one-time checkout sample.
+## 💳 Payment Flow
+1. User selects a subscription plan.
+2. User enters name, email, phone number in checkout modal.
+3. Express server calculates amount and generates SHA-512 cryptographic request hash.
+4. User is redirected to PayU hosted checkout page.
+5. PayU returns response to backend callback (`/api/payments/callback`).
+6. Backend verifies reverse SHA-512 hash and records payment in MongoDB.
+7. Frontend displays confirmed payment status with Transaction ID.
